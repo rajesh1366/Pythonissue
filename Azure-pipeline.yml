@@ -1,0 +1,68 @@
+parameters:
+  - name: pipeline_action
+    displayName: "Pick the correct action to execute"
+    type: string
+    values: ["create", "modify", "delete"]
+    default: "create"
+
+jobs:
+  - job: WindowsUserGroupManagement
+    timeoutInMinutes: 360
+    pool:
+      name: windows-pool
+      demands:
+        - Agent.OS -equals Windows
+
+    steps:
+      - task: Checkout@1
+        displayName: "Checkout Code"
+
+      - task: PowerShell@2
+        displayName: "Download Scripts"
+        inputs:
+          targetType: 'inline'
+          script: |
+            Invoke-WebRequest -Uri "https://artifactory.example.com/windows_mgmt.zip" -OutFile "C:\Scripts\windows_mgmt.zip"
+            Expand-Archive -Path "C:\Scripts\windows_mgmt.zip" -DestinationPath "C:\Scripts"
+
+      - task: UsePythonVersion@0
+        displayName: "Use Python 3.9"
+        inputs:
+          versionSpec: "3.9"
+          addToPath: true
+
+      - task: PythonScript@0
+        displayName: "Process Users JSON"
+        inputs:
+          scriptPath: "C:\Scripts\process_windows_users_groups.py"
+          arguments: "--jsonFile C:\Scripts\windows_user.json --entityType user"
+
+      - task: PythonScript@0
+        displayName: "Process Groups JSON"
+        inputs:
+          scriptPath: "C:\Scripts\process_windows_users_groups.py"
+          arguments: "--jsonFile C:\Scripts\windows_group.json --entityType group"
+
+      - task: PowerShell@2
+        displayName: "Create Groups"
+        inputs:
+          targetType: 'filePath'
+          filePath: "C:\Scripts\windows_group_action.ps1"
+          arguments: "-jsonFilePath C:\Scripts\groups.json"
+
+      - task: PowerShell@2
+        displayName: "Create Users"
+        inputs:
+          targetType: 'filePath'
+          filePath: "C:\Scripts\windows_user_action.ps1"
+          arguments: "-jsonFilePath C:\Scripts\users.json"
+
+      - task: puppet-infra@1
+        displayName: 'Apply Puppet Configuration'
+        inputs:
+          authToken: '$(puppet_Secrets.puppetProd)'
+          puppetHttpAPI: "https://puppet.example.com"
+          puppetAPIPort: '8143'
+          taskName: 'apply'
+          taskInputFilepath: 'C:\Scripts\windows_users_groups.pp'
+          puppetEnvironment: 'production'

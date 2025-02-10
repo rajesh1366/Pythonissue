@@ -1,0 +1,12 @@
+{
+  "deploy_artifact": "https://artifactory_global.standardchartered.com/artifactory/generic-sc-release-local/po",
+  "script": "windows_user_action.ps1",
+  "build_id": 856825,
+  "build_local_path": "C:\\Scripts",
+  "listOfNodes": [
+    {
+      "targetNodes": "WIN-SRV01,WIN-SRV02",
+      "taskArguments": "create|john.doe|John Doe|StrongP@ssw0rd|Administrators,Developers create|jane.smith|Jane Smith|AnotherP@ss|Users"
+    }
+  ]
+}
