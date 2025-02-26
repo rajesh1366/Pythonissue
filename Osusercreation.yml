@@ -1,0 +1,193 @@
+
+parameters:
+name: repositoryName
+type: string
+name:
+globaldirname
+type: string
+default: global
+name: state_filepath
+type: string
+name: pipeline_action
+type: string
+name: limit_user_lists
+displayName: |-
+comma separated list of user-names to include.
+eg: username1, username2,.something. Pass na/NA to skip user creation step
+type: string
+default:
+name: limit_group_lists
+displayName: |-
+comma separated list of group-names to include.
+eg: groupname1,groupname2,.something.
+Pass na/NA to skip group creation step
+type: string default: ' * '
+name: limit_compute_config
+type: string
+displayName: Comma separated list of compute config names to include eg absorvers,myapp,testmssql, "something."
+default:' * '
+name: limit_hostname
+displayName: Comma
+type: string
+separated list of hostnames to include eg hki jw9ynk jauyee,sgiji@ynkjauyee
+217709 Compute
+default:***
+steps:
+task: Bash@3
+displayName: OSGroup-User
+continueOnError: true
+timeoutInMinutes: 60
+name: RHEL USER_GROUP
+inputs:
+targetType: 'inline"
+script: |
+FAILURE='\033[31m'
+SUCCESS='\033[32m
+WARNING="\033[1;33m' BOLD='\033[1m'
+RESET=\033[0m'
+compute_filepath=${{parameters.repositoryName}}/template/${{parameters.globaldirname}}/prod/compute_mf.yml
+state_filepath=${{ parameters.state_filepath }}
+limit_user_lists=${{parameters.limit_user_lists}}
+limit_group_lists=${{parameters.limit_group_lists}}
+limit_compute_config=${{parameters.limit_compute_config}}
+limit_hostname=${{parameters.limit_hostname}}
+pipeline_action=${{parameters.pipeline_action}}
+rhel_user_exist="false"
+rhel_group_exist="false"
+nginx_vm_exist="false"
+COMPUTE_CONTENT=$(python3 -c 'import sys, yaml, json; print(json.dumps(yaml.safe_load(sys.stdin.read())))' < $compute_filepath)
+rhel_user_json='{
+"deploy_artifact": "${{ parameters.artifactoryUrlToFile }}",
+"script": "rhel_user_action.sh",
+"build_id": $(Build.BuildId),
+"build_local_path": "/tmp",
+"listOfNodes":[] }' rhel_group_json={
+"deploy artifact": "$({ parameters.artifactoryurlToFile }}",
+"script": "rhel_group_action.sh",
+"build_id": $( Build.BuildId),
+"build_local_path ": "/tmp",
+"listofNodes":[]
+217
+execute_os_user_group (){
+local state config item-"$1"
+local compute_config item="52"
+os-$(echo "$compute config item | 39-os)
+compute_name=$(echo "$compute config item | jorname)
+SERVER HOSTNAME_ADDRESSES=()
+while IFS read -r vm states; do
+host_record_name=$(echo "$vm states | jqr.ip_addresses[0].host_record_name") if [ "$limit hostname," ", Shost_record_name," || "Slimit hostname"]; then SERVER HOSTNAME ADDRESSES+ ("Shost record_name") fi
+done <<(echo "$state_config_item" | jqc.vm_states[]') if echo "$os" | grep -qie "rhel"; then
+if [[ "$limit_group_lists" == "NA" || "$limit_group_lists" == "na" ]]; then echo -e "${WARNING}Skipping group creation step for compute-name: $compute_name${RESET)"
+else
+if jq-e 'has("os-groups") <<< "$compute_config_item" > /dev/null; then
+if jqe.["os-groups"] != null <<< "$compute_config_item" > /dev/null; then
+group_args_array=()
+while IFS= read -r os_group; do
+groupname=$(echo "$os_group" | jqr.group')
+if [[ ",$limit_group_lists," ",$groupname," || "$limit_group_lists" == '' ]]; then ==
+gid=$(echo "$os_group" | jqr.gid // empty')
+group_args="$pipeline_action|$groupname |$gid"
+group_args_array+=(""${group_args}'")
+fi
+done < <(echo "$compute_config_item" | jq-c'.["os-groups"][]')
+if [ ${#group_args_array[@]} 1= 0 ]; then
+rhel_group_exist="true"
+HOSTNAMES_STRING=$(printf '%s' "$(IFS=','; echo "${SERVER_HOSTNAME_ADDRESSES[*]}")")
+task_arguments=$(IFS=''; echo "${group_args_array[*]}")
+listofNodes_entries=$(jq-n-arg host_nodes "$HOSTNAMES_STRING" -argjson task_args "$task_arguments". "{
+"targetNodes": $host_nodes,
+"taskAreuments": $task args }')
+rhel_group_json=$(echo "$rhel_group_json" | jq-argjson newNode "$ listoflodes_entries" '.listOfNodes
+199
+[SnewNode]') > /dev/null
+fi
+else
+fi
+echo "${ (WARNING)os-group value is null for compute-name: $compute_names(RESET)"
+fi
+else
+echo "${WARNING [NG) No os-group found for compute-name: Scompute_name$(RESET}"
+fi
+if [[ "$limit_user_lists" == "NA" || "Slimit_user_lists" == "na" ]]; then
+echo -e "$(WARNING}Skipping user creation step for compute-name: $compute_names(RESET)"
+else
+if jq-e 'has("os-users")" <<< "$compute_config_item" > /dev/null; then
+if jq-e.["os-users"] != null" <<< "$compute_config_item" > /dev/null; then
+user_args_array=()
+while IFS read -r os_user; do
+I
+user_name=$(echo "$os_user" | jqr.user)
+if [[ ",$limit_user_lists," ", $user_name," || "$limit_user_lists" == '' ]]; then
+home_path=$(echo "$os_user" | jqr.home // empty")
+uid=$(echo "$os_user" | jqr.uid // empty')
+primary_gid=$(echo "$os_user" | jqr.gid // empty') secondary_gids=$(echo "$os_user" | jq-r.["secondary-gid "] // [] | join(",")")
+user_args="Spipeline_action|$user_name|Suid|$primary_gid|$secondary_gids | Shome_path"
+user_args_array+=("'${user_args)'")
+fi done < <(echo "$compute_config_item" | jq-c'.["os-users"][]")
+if [${#user_args_array[@]} 1= 0]; then
+rhel_user_exist="true"
+HOSTNAMES_STRING=$(printf '%s' "$(IFS=','; echo "${SERVER_HOSTNAME_ADDRESSES[*]}")")
+task_arguments=$(IFS=''; echo "${user_args_array[*]}")
+listofNodes_entries $(jq-n--arg host_nodes "SHOSTNAMES_STRING"-argjson task_args "Stask_arguments" (
+"targetNodes": $host_nodes,
+"taskArguments": $task_args
+}')
+rhel_user_json=$(echo "$rhel_user json" | jq-argjson newNode "$listOfNodes_entries" '.listOfNodes[$newNode]') > /dev/null
+fi
+else
+echo -e "${WARNING}os-users value is null for compute-name: $compute_names (RESET)"
+fi
+else
+echo -e "$(WARNING) No os-users key found for compute-name: $compute_name$(RESET)"
+fi
+fi
+else echo -e "$(WARNING) The OS type is: $os for compute-name: $compute_name${RESET}"
+while IFS read -r state_config_item; do
+state_name=$(echo "$state_config_item" | jqr.name_mf')
+while IFS read -r compute_config_item; do compute_name=$(echo "$compute_config_item" | jqr.name') if [[ $state_name = $compute_name ]]; then if [[ ",$limit_compute_config," == ", $compute_name," || "$limit_compute_config" == '*' ]]; then execute_os_user_group "$state_config_item" "$compute_config_item" fi fi
+done <<(echo "$COMPUTE_CONTENT" | jqc.["compute-config"][]') done <<(jqc.compute_configs[]' $state_filepath)
+if jq-e 'has("nginx-lb-config") and ["nginx-lb-config"] != null <<< "SCOMPUTE_CONTENT" > /dev/null; then nginx_hostname_array=()
+while IFS read -r state_config_item; do
+state_name=$(echo "$state_config_item" | jqr.name_mf') while IFS read -r compute_config_item; do
+compute_name=$(echo "$compute_config_item" | jqr.fdname') if [[ $state_name == $compute_name ]]; then
+if [[ ",$limit_compute_config," == ", $compute_name, "" || "$limit_compute_config" == '' ]]; then
+while IFS read -r vm_states; do
+host_record_name=$(echo "$vm_states" | jqr.ip_addresses[0].host_record_name')
+if [[ ",$limit_hostname," == "", $host_record_name, "" || "$limit_hostname"]]; then
+rhel_user_exist="true"
+rhel_group_exist="true"
+nginx_vm_exist="true"
+nginx_hostname_array+=("$host_record_name")
+fi
+done < <(echo "$state_config_item" | jq-c'.vm_states[]')
+fi
+fi
+done <<(echo "$COMPUTE_CONTENT" | jq-c'.["nginx-lb-config"][]')
+done < <(jq-c.compute_configs[]' $state filepath)
+if [ $nginx_vm_exist == "true" ]; then
+HOSTNAMES_STRING=$(printf '%s' "$(IFS=','; echo "$(nginx_hostname_array[*]}")")
+user_task_arguments="create/nginxadm|5545|5545||/home/nginxadm"
+listofNodes_user_entries=$(jq-n--arg host_nodes "$HOSTNAMES_STRING" --argjson task_args "$user_task_arguments" "{
+"targetNodes": $host_nodes,
+"taskArguments": $task_args }')
+rhel_user_json=$(echo "$rhel_user_json" | jq --argjson newNode "$listOfNodes_user_entries" '.listofNodes += [$newllode]*) >
+/dev/null
+fi
+fi
+group_task_arguments="create nginxadm|5545"
+listofNodes_group_entries=$(jq-n-arg host_nodes "SHOSTNAMES STRING"-argjson task_args "$group_task_arguments" "[
+"targetNodes": $host_nodes,
+"taskArguments": $task_args
+}')
+rhel_group_json=$(echo "$rhel_group_json" | jqargjson newNode "$listOfNodes_group_entries" '.listOfNodes += [$newNode]*) > /dev/null
+rhel_user_input="rhel_user_input.json"
+echo -e "Linux USER json: \n$rhel_user_json"
+echo "$rhel_user_json" > "$rhel_user_input"
+echo "##vso[task.setvariable variable=rhel_user_input; isoutput=true]$rhel_user_input"
+echo "##vso[task.setvariable variable=rhel_user_exist; isOutput=true]$rhel_user_exist"
+rhel_group_input="rhel_group_input.json"
+echo -e "Linux Group json: \n$rhel_group_json"
+echo "$rhel group_json" > "$rhel_group_input"
+echo "##vso[task.setvariable variable=rhel_group_input;isoutput=true]$chel_group_input" echo "##vso[task.setvariable variable=rhel_group_exist; isoutput=true]$rhel_group_exist"
+
+wait
