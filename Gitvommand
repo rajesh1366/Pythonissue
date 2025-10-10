@@ -1,0 +1,8 @@
+git ls-tree -r -l HEAD | \
+grep -E "\.(tgz|rpm|exe|jar|tar\.gz|tar|dll|msi|zip|pdf|ppt|pptx|mp4|mov|avi|flv|m4v)$" | \
+grep -Ev "gradle-wrapper.jar|maven-wrapper.jar" | \
+awk '{print $3, $4, $5, $6}' | \
+sort --numeric-sort --key=2 | \
+cut -c1-12,41- | \
+$(command -v gnumfmt || echo numfmt) --field=2 --to=iec --suffix=B --padding=7 round=nearest \
+>> "../${source}RepoName.log"
