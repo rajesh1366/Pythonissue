@@ -1,7 +1,10 @@
-git ls-tree -r -l HEAD | \
-awk '{print $3, $4, $5, $6}' | \
-grep -E "\.(tgz|rpm|exe|jar|tar\.gz|tar|dll|msi|zip|pdf|ppt|pptx|mp4|mov|avi|flv|m4v)$" | \
-grep -Ev "gradle-wrapper.jar|maven-wrapper.jar" | \
-awk '{printf "%s,%s,%s\n", $3, $4, $5}' | \
-sort -t',' -k2,2n | \
-numfmt --field=2 --to=iec --suffix=B --padding=7 round=nearest > "../${source}RepoName.csv"
+git ls-tree -r -l HEAD |
+awk '{print "blob "$3" "$4" "$5}' |
+git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' |
+grep -E "[.](tgz|rpm|exe|jar|tar[.]gz|tar|dil|msi|zip|pdf|ppt|pptx|mp4|mov|avi|flv|m4v)$" |
+grep -Ev "gradle-wrapper.jar|maven-wrapper.jar" |
+sed -n 's/^blob //p' |
+awk '!_[$3]++' |
+sort --numeric-sort --key=2 |
+cut -c 1-12,41- |
+$(command -v gnumfmt || echo numfmt) --field=2 --to=iec --suffix=B --padding=7 --round=nearest >> "../$sourceRepoName.log"
