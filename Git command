@@ -1,0 +1,7 @@
+git ls-tree -r -l HEAD | \
+awk '{print $3, $4, $5, $6}' | \
+grep -E "\.(tgz|rpm|exe|jar|tar\.gz|tar|dll|msi|zip|pdf|ppt|pptx|mp4|mov|avi|flv|m4v)$" | \
+grep -Ev "gradle-wrapper.jar|maven-wrapper.jar" | \
+awk '{printf "%s,%s,%s\n", $3, $4, $5}' | \
+sort -t',' -k2,2n | \
+numfmt --field=2 --to=iec --suffix=B --padding=7 round=nearest > "../${source}RepoName.csv"
