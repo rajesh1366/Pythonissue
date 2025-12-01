@@ -1,0 +1,92 @@
+Nice — here’s a ready-to-paste prompt you can give to ChatGPT (or to a developer) to get the exact Python script you want. It explicitly describes grouping by the first 5-digit CIID, treats a CIID as good if any repo/environment under that CIID has a production_v2 environment, and writes only the CIIDs without production_v2 to a CSV.
+
+
+---
+
+Prompt (copy & paste):
+
+> Write a Python script that uses the Azure DevOps REST API to find CIIDs (first 5 characters of repo name) that do NOT have any production_v2 environment across all their repos, and save those CIIDs to a CSV.
+
+Requirements:
+
+1. The script must be runnable with Python 3 and use only requests, csv, json, and standard library modules. Add pip install requests note in a comment.
+
+
+2. Inputs (set these variables near the top of the script):
+
+ORG_URL — full organization URL, e.g. "https://dev.azure.com/your_org"
+
+PROJECT — project name (if you want to scope by project) or None to search all projects
+
+PAT — Azure DevOps personal access token (used for basic auth)
+
+OUTPUT_CSV — e.g. "pending_ciids.csv"
+
+
+
+3. Behavior:
+
+List all repositories (use the Repos API). For each repo name, extract the CIID = first 5 characters (assume repo names start with 5-digit numeric CIID; skip repos whose first 5 chars are not digits).
+
+For each repo, list its Environments (use the Environments or Pipelines Environments API). If an organization-level endpoint is needed, handle per-repo/per-project accordingly.
+
+If any environment name under any repo that belongs to a CIID equals (exact match) production_v2, mark that entire CIID as good.
+
+If no repo belonging to a CIID has production_v2, mark that CIID pending.
+
+Handle duplicated repos (same CIID across multiple repos) correctly — a single production_v2 anywhere for that CIID makes the CIID good.
+
+Support paging (if API returns continuation tokens).
+
+
+
+4. Output:
+
+Write a CSV containing only pending CIIDs (those with no production_v2) with columns:
+
+CIID (5-digit)
+
+repo_count (number of repos scanned for that CIID)
+
+repos (semicolon-separated repo names)
+
+
+Print a short summary to stdout: total CIIDs scanned, number of good CIIDs, number of pending CIIDs, path to CSV.
+
+
+
+5. Comments / error handling:
+
+Add clear comments where to set ORG_URL, PROJECT, and PAT.
+
+Handle HTTP errors and print useful messages if auth fails or a call errors.
+
+Keep code tidy and well-commented so I can modify PROJECT or PAT easily.
+
+
+
+
+Example repo names:
+
+51865-service-a
+
+51865-worker
+
+12345-api
+
+
+Expected behavior using example:
+
+If any 51865-* repo has an environment named production_v2, do not include 51865 in the CSV.
+
+If none of the 12345-* repos have production_v2, include 12345 in the CSV.
+
+
+Deliver the complete Python script only (no extra explanation).
+
+
+
+
+---
+
+Want, I can also produce the Python script right away — tell me if you want the script in this chat and whether the repos' CIID is definitely in the repo name (first 5 chars) or in environment names instead.
