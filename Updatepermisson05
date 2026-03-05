@@ -1,0 +1,107 @@
+import requests
+import base64
+import json
+import urllib3
+import os
+
+urllib3.disable_warnings()
+
+# -----------------------------
+# ADO DETAILS
+# -----------------------------
+organization = "sc-ado-qa-op"
+project = "ASIAQPR"
+pat = "YOUR_PAT_TOKEN"
+
+# -----------------------------
+# INPUT FILE
+# -----------------------------
+file_path = r"C:\Users\Rohith\Desktop\11111-test-NON_PROD-08.txt"
+
+secure_file_name = os.path.splitext(os.path.basename(file_path))[0]
+
+print("Secure file name:", secure_file_name)
+
+# -----------------------------
+# AUTH
+# -----------------------------
+pat_token = base64.b64encode(f":{pat}".encode()).decode()
+
+headers = {
+    "Authorization": f"Basic {pat_token}",
+    "Content-Type": "application/octet-stream"
+}
+
+# -----------------------------
+# STEP 1 - UPLOAD SECURE FILE
+# -----------------------------
+upload_url = f"https://ado.global.standardchartered.com/{organization}/{project}/_apis/distributedtask/securefiles?name={secure_file_name}&api-version=7.1-preview.1"
+
+with open(file_path, "rb") as f:
+    data = f.read()
+
+response = requests.post(upload_url, headers=headers, data=data, verify=False)
+
+if response.status_code not in [200,201]:
+    print("❌ Upload failed")
+    print(response.text)
+    exit()
+
+print("✅ Secure file uploaded")
+
+secure_file_id = response.json()["id"]
+
+# -----------------------------
+# GROUP DESCRIPTORS
+# (Replace with real descriptors)
+# -----------------------------
+group_descriptors = {
+    "ADO-11111-Engineer-review": "vssgp.xxxxxxxxxxxxx1",
+    "ADO-11111-Engineer-write": "vssgp.xxxxxxxxxxxxx2"
+}
+
+# -----------------------------
+# SECURITY NAMESPACE
+# -----------------------------
+security_namespace = "52d39943-cb85-4d7f-8fa8-c6baac873819"
+
+security_url = f"https://ado.global.standardchartered.com/{organization}/_apis/accesscontrolentries/{security_namespace}?api-version=7.1-preview.1"
+
+headers_json = {
+    "Authorization": f"Basic {pat_token}",
+    "Content-Type": "application/json"
+}
+
+# -----------------------------
+# STEP 2 - ASSIGN PERMISSIONS
+# -----------------------------
+for group, descriptor in group_descriptors.items():
+
+    print("Assigning permission to:", group)
+
+    body = {
+        "token": f"SecureFile/{project}/{secure_file_id}",
+        "merge": True,
+        "accessControlEntries": [
+            {
+                "descriptor": descriptor,
+                "allow": 1,
+                "deny": 0
+            }
+        ]
+    }
+
+    perm_response = requests.post(
+        security_url,
+        headers=headers_json,
+        data=json.dumps(body),
+        verify=False
+    )
+
+    if perm_response.status_code in [200,201]:
+        print("✅ Permission added for", group)
+    else:
+        print("❌ Failed for", group)
+        print(perm_response.text)
+
+print("🎉 Script completed")
