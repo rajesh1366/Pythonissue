@@ -1,0 +1,114 @@
+import requests
+import base64
+import json
+import urllib3
+
+urllib3.disable_warnings()
+
+# ---------------- CONFIG ----------------
+
+organization = "sc-ado-qa-op"
+pat = "YOUR_PAT"
+
+file_path = r"C:\Users\Rohith\Desktop\securefile.txt"
+secure_file_name = "11111-test-NON_PROD-08"
+
+# ----------------------------------------
+
+# Extract CIID
+ciid = secure_file_name.split("-")[0]
+
+print("CIID:", ciid)
+
+# Detect environment
+if "NON_PROD" in secure_file_name:
+    env = "NON_PROD"
+else:
+    env = "PROD"
+
+print("Environment:", env)
+
+# PAT auth
+auth = base64.b64encode(f":{pat}".encode()).decode()
+
+headers = {
+    "Authorization": f"Basic {auth}"
+}
+
+# ---------------- Upload Secure File ----------------
+
+upload_url = f"https://ado.global.standardchartered.com/{organization}/_apis/distributedtask/securefiles?name={secure_file_name}&api-version=7.1-preview.1"
+
+with open(file_path, "rb") as f:
+    response = requests.post(upload_url, headers=headers, data=f, verify=False)
+
+if response.status_code not in [200, 201]:
+    print("Upload failed")
+    print(response.text)
+    exit()
+
+secure_file_id = response.json()["id"]
+
+print("Secure file uploaded:", secure_file_name)
+
+# ---------------- Get All Groups ----------------
+
+graph_url = f"https://vssps.ado.global.standardchartered.com/{organization}/_apis/graph/groups?subjectTypes=vssgp&api-version=7.1-preview.1"
+
+group_response = requests.get(graph_url, headers=headers, verify=False)
+
+groups_json = group_response.json()["value"]
+
+# ---------------- Filter Groups ----------------
+
+target_groups = []
+
+for g in groups_json:
+
+    name = g["displayName"]
+
+    if name.startswith(f"ADO-{ciid}"):
+
+        if env == "NON_PROD" and "Engineer" in name:
+            target_groups.append(g)
+
+        if env == "PROD" and "PSS" in name:
+            target_groups.append(g)
+
+print("Groups to assign:")
+
+for g in target_groups:
+    print(g["displayName"])
+
+# ---------------- Assign Permission ----------------
+
+security_url = f"https://ado.global.standardchartered.com/{organization}/_apis/accesscontrolentries/DistributedTask.SecureFile?api-version=7.1-preview.1"
+
+for g in target_groups:
+
+    descriptor = g["descriptor"]
+
+    body = {
+        "token": secure_file_id,
+        "accessControlEntries": [
+            {
+                "descriptor": descriptor,
+                "allow": 31,
+                "deny": 0
+            }
+        ]
+    }
+
+    res = requests.post(
+        security_url,
+        headers={
+            "Authorization": f"Basic {auth}",
+            "Content-Type": "application/json"
+        },
+        data=json.dumps(body),
+        verify=False
+    )
+
+    print("Assigned:", g["displayName"])
+
+print("Script completed successfully")
