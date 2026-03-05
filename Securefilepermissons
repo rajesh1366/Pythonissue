@@ -1,0 +1,81 @@
+
+import requests
+import base64
+import json
+import os
+
+organization = "your-org"
+project = "your-project"
+pat = "your-pat-token"
+
+# Inputs
+CIID = "52002"
+environment = "NON_PROD"   # NON_PROD or PROD
+
+file_path = r"C:\Users\Rohith\Desktop\securefile.txt"
+
+base_filename = os.path.splitext(os.path.basename(file_path))[0]
+
+secure_file_name = f"{CIID}-{base_filename}-{environment}"
+
+pat_token = base64.b64encode(f":{pat}".encode()).decode()
+
+headers = {
+    "Authorization": f"Basic {pat_token}",
+    "Content-Type": "application/octet-stream"
+}
+
+upload_url = f"https://dev.azure.com/{organization}/{project}/_apis/distributedtask/securefiles?name={secure_file_name}&api-version=7.1-preview.1"
+
+with open(file_path, "rb") as f:
+    file_content = f.read()
+
+response = requests.post(upload_url, headers=headers, data=file_content, verify=False)
+
+if response.status_code in [200,201]:
+
+    print("✅ Secure file uploaded")
+
+    secure_file_id = response.json()["id"]
+
+    # Decide groups based on environment
+    if environment == "NON_PROD":
+        groups = [
+            f"ADO-{CIID}-Engineer-review",
+            f"ADO-{CIID}-Engineer-write"
+        ]
+    else:
+        groups = [
+            f"ADO-{CIID}-PSS-review",
+            f"ADO-{CIID}-PSS-write"
+        ]
+
+    permission_url = f"https://dev.azure.com/{organization}/{project}/_apis/pipelines/pipelinepermissions/securefile/{secure_file_id}?api-version=7.1-preview.1"
+
+    permission_body = {
+        "allPipelines": {
+            "authorized": False
+        }
+    }
+
+    permission_headers = {
+        "Authorization": f"Basic {pat_token}",
+        "Content-Type": "application/json"
+    }
+
+    perm_response = requests.patch(
+        permission_url,
+        headers=permission_headers,
+        data=json.dumps(permission_body),
+        verify=False
+    )
+
+    print("🔐 Pipeline permission updated")
+
+    print("Assigned groups:")
+    for g in groups:
+        print(g)
+
+else:
+    print("❌ Upload failed")
+    print(response.text)
