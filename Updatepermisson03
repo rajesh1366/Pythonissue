@@ -1,0 +1,146 @@
+
+import requests
+import base64
+import json
+import os
+import urllib3
+
+# Disable SSL warnings (corporate proxy)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# -------------------------------
+# ADO DETAILS
+# -------------------------------
+organization = "your-org"
+project = "your-project"
+pat = "your-pat-token"
+
+# -------------------------------
+# INPUTS
+# -------------------------------
+CIID = "11111"
+environment = "NON_PROD"  # NON_PROD or PROD
+file_path = r"C:\Users\Rohith\Desktop\securefile.txt"
+
+# -------------------------------
+# FILE NAME FORMAT
+# -------------------------------
+base_filename = os.path.splitext(os.path.basename(file_path))[0]
+secure_file_name = f"{CIID}-{base_filename}-{environment}"
+
+# -------------------------------
+# AUTH HEADER
+# -------------------------------
+pat_token = base64.b64encode(f":{pat}".encode()).decode()
+
+headers = {
+    "Authorization": f"Basic {pat_token}",
+    "Content-Type": "application/octet-stream"
+}
+
+# -------------------------------
+# STEP 1: UPLOAD SECURE FILE
+# -------------------------------
+upload_url = f"https://dev.azure.com/{organization}/{project}/_apis/distributedtask/securefiles?name={secure_file_name}&api-version=7.1-preview.1"
+
+with open(file_path, "rb") as f:
+    data = f.read()
+
+response = requests.post(upload_url, headers=headers, data=data, verify=False)
+
+if response.status_code not in [200, 201]:
+    print("❌ Upload failed")
+    print(response.text)
+    exit()
+
+print("✅ Secure file uploaded")
+
+secure_file_id = response.json()["id"]
+
+# -------------------------------
+# GROUP SELECTION
+# -------------------------------
+if environment == "NON_PROD":
+    group_names = [
+        f"ADO-{CIID}-Engineer-review",
+        f"ADO-{CIID}-Engineer-write"
+    ]
+else:
+    group_names = [
+        f"ADO-{CIID}-PSS-review",
+        f"ADO-{CIID}-PSS-write"
+    ]
+
+# -------------------------------
+# GET ALL GROUPS
+# -------------------------------
+graph_url = f"https://vssps.dev.azure.com/{organization}/_apis/graph/groups?api-version=7.1-preview.1"
+
+graph_headers = {
+    "Authorization": f"Basic {pat_token}"
+}
+
+group_response = requests.get(graph_url, headers=graph_headers, verify=False)
+
+if group_response.status_code != 200:
+    print("❌ Failed to fetch groups")
+    print(group_response.text)
+    exit()
+
+groups_data = group_response.json().get("value", [])
+
+# -------------------------------
+# SECURITY NAMESPACE FOR LIBRARY
+# -------------------------------
+security_namespace = "52d39943-cb85-4d7f-8fa8-c6baac873819"
+
+for group in group_names:
+
+    descriptor = None
+
+    for g in groups_data:
+        if group.lower() in g["displayName"].lower():
+            descriptor = g["descriptor"]
+            break
+
+    if descriptor is None:
+        print(f"⚠ Group not found: {group}")
+        continue
+
+    print(f"✅ Found group: {group}")
+
+    token = f"SecureFile/{project}/{secure_file_id}"
+
+    security_url = f"https://dev.azure.com/{organization}/_apis/accesscontrolentries/{security_namespace}?api-version=7.1-preview.1"
+
+    body = {
+        "token": token,
+        "merge": True,
+        "accessControlEntries": [
+            {
+                "descriptor": descriptor,
+                "allow": 1,
+                "deny": 0
+            }
+        ]
+    }
+
+    security_headers = {
+        "Authorization": f"Basic {pat_token}",
+        "Content-Type": "application/json"
+    }
+
+    perm_response = requests.post(
+        security_url,
+        headers=security_headers,
+        data=json.dumps(body),
+        verify=False
+    )
+
+    if perm_response.status_code in [200, 201]:
+        print(f"🔐 Permission assigned to {group}")
+    else:
+        print(f"❌ Failed permission for {group}")
+        print(perm_response.text)
+
+print("🎉 Script completed")
