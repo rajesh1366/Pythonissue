@@ -1,0 +1,153 @@
+import os
+import requests
+import base64
+import urllib3
+
+urllib3.disable_warnings()
+
+print("Starting Secure File Automation")
+
+# ---------------- CONFIG ----------------
+
+ADO_URL = os.getenv(
+    "ADO_URL",
+    "https://ado.global.standardchartered.com/sc-ado-op"
+)
+
+PROJECT = os.getenv("ADO_PROJECT", "ASIAQPR")
+
+API_VERSION = "7.1-preview.1"
+
+PAT = os.getenv("ADO_PAT")
+
+FILE_PATH = r"C:\Users\Rohith\Desktop\11111-test-NON_PROD-08.txt"
+
+# ----------------------------------------
+
+secure_file_name = os.path.splitext(os.path.basename(FILE_PATH))[0]
+
+print("Secure file name:", secure_file_name)
+
+# Extract CIID
+ciid = secure_file_name.split("-")[0]
+
+# Detect environment
+if "NON_PROD" in secure_file_name:
+    environment = "NON_PROD"
+else:
+    environment = "PROD"
+
+print("CIID:", ciid)
+print("Environment:", environment)
+
+# ---------------- AUTH ----------------
+
+token = base64.b64encode(f":{PAT}".encode()).decode()
+
+headers = {
+    "Authorization": f"Basic {token}",
+    "Content-Type": "application/octet-stream"
+}
+
+# ---------------- STEP 1 : Upload Secure File ----------------
+
+upload_url = f"{ADO_URL}/{PROJECT}/_apis/distributedtask/securefiles?name={secure_file_name}&api-version={API_VERSION}"
+
+with open(FILE_PATH, "rb") as f:
+    response = requests.post(upload_url, headers=headers, data=f, verify=False)
+
+if response.status_code not in [200, 201]:
+    print("Upload failed:", response.text)
+    exit()
+
+secure_file_id = response.json()["id"]
+
+print("Secure file uploaded successfully")
+
+# ---------------- STEP 2 : Get Groups (On-Prem Identity API) ----------------
+
+group_url = f"{ADO_URL}/_apis/identities?searchFilter=General&filterValue=ADO-{ciid}&queryMembership=None&api-version={API_VERSION}"
+
+group_response = requests.get(
+    group_url,
+    headers={"Authorization": f"Basic {token}"},
+    verify=False
+)
+
+if group_response.status_code != 200:
+    print("Failed to fetch groups:", group_response.text)
+    exit()
+
+groups = group_response.json()["value"]
+
+print("Groups fetched:", len(groups))
+
+# ---------------- STEP 3 : Filter Correct Groups ----------------
+
+target_groups = []
+
+for g in groups:
+
+    name = g["displayName"]
+
+    if environment == "NON_PROD":
+
+        if name in [
+            f"ADO-{ciid}-Engineer-review",
+            f"ADO-{ciid}-Engineer-write"
+        ]:
+            target_groups.append(g)
+
+    else:
+
+        if name in [
+            f"ADO-{ciid}-PSS-review",
+            f"ADO-{ciid}-PSS-write"
+        ]:
+            target_groups.append(g)
+
+print("Groups to assign:")
+
+for g in target_groups:
+    print(g["displayName"])
+
+# ---------------- STEP 4 : Assign Permissions ----------------
+
+security_namespace = "52d39943-cb85-4d7f-8fa8-c6baac873819"
+
+security_url = f"{ADO_URL}/_apis/accesscontrolentries/{security_namespace}?api-version={API_VERSION}"
+
+headers_json = {
+    "Authorization": f"Basic {token}",
+    "Content-Type": "application/json"
+}
+
+for g in target_groups:
+
+    descriptor = g["descriptor"]
+
+    body = {
+        "token": f"SecureFile/{PROJECT}/{secure_file_id}",
+        "merge": True,
+        "accessControlEntries": [
+            {
+                "descriptor": descriptor,
+                "allow": 1,
+                "deny": 0
+            }
+        ]
+    }
+
+    perm_response = requests.post(
+        security_url,
+        headers=headers_json,
+        json=body,
+        verify=False
+    )
+
+    if perm_response.status_code in [200, 201]:
+        print("Permission assigned:", g["displayName"])
+    else:
+        print("Permission failed:", g["displayName"], perm_response.text)
+
+print("Script completed successfully")
