@@ -1,0 +1,107 @@
+
+import requests
+import base64
+import json
+import os
+
+organization = "your-org"
+project = "your-project"
+pat = "your-pat"
+
+CIID = "11111"
+environment = "NON_PROD"
+
+file_path = r"C:\Users\Rohith\Desktop\securefile.txt"
+
+base_filename = os.path.splitext(os.path.basename(file_path))[0]
+secure_file_name = f"{CIID}-{base_filename}-{environment}"
+
+pat_token = base64.b64encode(f":{pat}".encode()).decode()
+
+headers = {
+    "Authorization": f"Basic {pat_token}",
+    "Content-Type": "application/octet-stream"
+}
+
+# Upload Secure File
+upload_url = f"https://dev.azure.com/{organization}/{project}/_apis/distributedtask/securefiles?name={secure_file_name}&api-version=7.1-preview.1"
+
+with open(file_path, "rb") as f:
+    data = f.read()
+
+response = requests.post(upload_url, headers=headers, data=data, verify=False)
+
+if response.status_code not in [200,201]:
+    print("Upload failed")
+    print(response.text)
+    exit()
+
+print("Secure file uploaded")
+
+secure_file_id = response.json()["id"]
+
+# Groups based on environment
+if environment == "NON_PROD":
+    groups = [
+        f"ADO-{CIID}-Engineer-review",
+        f"ADO-{CIID}-Engineer-write"
+    ]
+else:
+    groups = [
+        f"ADO-{CIID}-PSS-review",
+        f"ADO-{CIID}-PSS-write"
+    ]
+
+# Get group descriptors
+graph_headers = {
+    "Authorization": f"Basic {pat_token}"
+}
+
+for group in groups:
+
+    group_url = f"https://vssps.dev.azure.com/{organization}/_apis/graph/groups?api-version=7.1-preview.1"
+
+    group_response = requests.get(group_url, headers=graph_headers)
+
+    groups_data = group_response.json()["value"]
+
+    descriptor = None
+
+    for g in groups_data:
+        if group in g["displayName"]:
+            descriptor = g["descriptor"]
+
+    if descriptor is None:
+        print(f"Group not found: {group}")
+        continue
+
+    print(f"Found group {group}")
+
+    # Security namespace for Library
+    security_url = f"https://dev.azure.com/{organization}/_apis/accesscontrolentries/52d39943-cb85-4d7f-8fa8-c6baac873819?api-version=7.1-preview.1"
+
+    body = {
+        "token": f"SecureFile/{secure_file_id}",
+        "merge": True,
+        "accessControlEntries": [
+            {
+                "descriptor": descriptor,
+                "allow": 1,
+                "deny": 0
+            }
+        ]
+    }
+
+    sec_headers = {
+        "Authorization": f"Basic {pat_token}",
+        "Content-Type": "application/json"
+    }
+
+    perm_response = requests.post(
+        security_url,
+        headers=sec_headers,
+        data=json.dumps(body),
+        verify=False
+    )
+
+    print(f"Permission assigned to {group}")
