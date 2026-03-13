@@ -1,0 +1,189 @@
+import os
+import sys
+import requests
+import base64
+import urllib3
+
+urllib3.disable_warnings()
+
+print("Starting Secure File Automation")
+
+# ---------------- CONFIG ----------------
+
+ADO_URL = "https://ado.global.standardchartered.com/sc-ado-qa-op"
+PROJECT = "ASIAQPR"
+API_VERSION = "7.1-preview.1"
+
+FILE_PATH = r"C:\Users\Rohith\Desktop\11111-test-NON_PROD-08.txt"
+
+PAT = sys.argv[1]
+
+# ----------------------------------------
+
+secure_file_name = os.path.splitext(os.path.basename(FILE_PATH))[0]
+
+print("Secure file:", secure_file_name)
+
+# Extract CIID
+ciid = secure_file_name.split("-")[0]
+
+# Detect environment
+environment = "NON_PROD" if "NON_PROD" in secure_file_name else "PROD"
+
+print("CIID:", ciid)
+print("Environment:", environment)
+
+# ---------------- AUTH ----------------
+
+token = base64.b64encode(f":{PAT}".encode()).decode()
+
+headers = {
+    "Authorization": f"Basic {token}"
+}
+
+# ---------------- GET PROJECT ID ----------------
+
+project_url = f"{ADO_URL}/_apis/projects/{PROJECT}?api-version=7.1"
+
+project_resp = requests.get(project_url, headers=headers, verify=False)
+
+if project_resp.status_code != 200:
+    print("Failed to fetch project:", project_resp.text)
+    sys.exit()
+
+project_id = project_resp.json()["id"]
+
+print("Project ID:", project_id)
+
+# ---------------- CHECK EXISTING SECURE FILE ----------------
+
+print("Checking if secure file already exists...")
+
+list_url = f"{ADO_URL}/{PROJECT}/_apis/distributedtask/securefiles?api-version={API_VERSION}"
+
+resp = requests.get(list_url, headers=headers, verify=False)
+
+existing_file_id = None
+
+if resp.status_code == 200:
+
+    files = resp.json().get("value", [])
+
+    for f in files:
+
+        if f["name"] == secure_file_name:
+
+            existing_file_id = f["id"]
+
+            print("Existing secure file found")
+
+            break
+
+# ---------------- DELETE OLD FILE ----------------
+
+if existing_file_id:
+
+    delete_url = f"{ADO_URL}/{PROJECT}/_apis/distributedtask/securefiles/{existing_file_id}?api-version={API_VERSION}"
+
+    print("Deleting existing secure file...")
+
+    delete_resp = requests.delete(delete_url, headers=headers, verify=False)
+
+    if delete_resp.status_code in [200, 204]:
+
+        print("Old secure file deleted")
+
+    else:
+
+        print("Failed to delete file:", delete_resp.text)
+
+# ---------------- UPLOAD SECURE FILE ----------------
+
+upload_headers = {
+    "Authorization": f"Basic {token}",
+    "Content-Type": "application/octet-stream"
+}
+
+upload_url = f"{ADO_URL}/{PROJECT}/_apis/distributedtask/securefiles?name={secure_file_name}&api-version={API_VERSION}"
+
+print("Uploading secure file...")
+
+with open(FILE_PATH, "rb") as f:
+    upload_resp = requests.post(upload_url, headers=upload_headers, data=f, verify=False)
+
+if upload_resp.status_code not in [200, 201]:
+    print("Upload failed:", upload_resp.text)
+    sys.exit()
+
+secure_file_id = upload_resp.json()["id"]
+
+print("Secure file uploaded:", secure_file_id)
+
+# ---------------- DETERMINE GROUPS ----------------
+
+if environment == "NON_PROD":
+
+    group_names = [
+        f"ADO-{ciid}-Engineer-review",
+        f"ADO-{ciid}-Engineer-write"
+    ]
+
+else:
+
+    group_names = [
+        f"ADO-{ciid}-PSS-review",
+        f"ADO-{ciid}-PSS-write"
+    ]
+
+print("Expected groups:", group_names)
+
+# ---------------- FIND GROUPS ----------------
+
+target_groups = []
+
+for group_name in group_names:
+
+    group_url = f"{ADO_URL}/_apis/identities?searchFilter=General&filterValue={group_name}&api-version=7.1"
+
+    r = requests.get(group_url, headers=headers, verify=False)
+
+    if r.status_code == 200 and r.json()["value"]:
+
+        group = r.json()["value"][0]
+
+        target_groups.append(group)
+
+        print("Found group:", group.get("providerDisplayName"))
+
+    else:
+
+        print("Group not found:", group_name)
+
+# ---------------- ASSIGN PERMISSIONS ----------------
+
+print("Assigning permissions...")
+
+for group in target_groups:
+
+    descriptor = group["descriptor"]
+
+    permission_url = f"{ADO_URL}/{PROJECT}/_apis/securityroles/scopes/distributedtask.securefile/roleassignments/resources/{project_id}_{secure_file_id}?api-version={API_VERSION}"
+
+    body = {
+        "roleName": "User",
+        "userId": descriptor
+    }
+
+    resp = requests.put(
+        permission_url,
+        headers={
+            "Authorization": f"Basic {token}",
+            "Content-Type": "application/json"
+        },
+        json=body,
+        verify=False
+    )
+
+    print("Assigning:", group.get("providerDisplayName"), "Status:", resp.status_code)
+
+print("Script completed successfully")
