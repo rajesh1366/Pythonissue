@@ -1,0 +1,37 @@
+print("Assigning permissions...")
+
+security_namespace = "52d39943-cb85-4d7f-8fa8-c6baac873819"
+
+security_url = f"{ADO_URL}/_apis/accesscontrolentries/{security_namespace}?api-version=7.1-preview.1"
+
+headers_json = {
+    "Authorization": f"Basic {token}",
+    "Content-Type": "application/json"
+}
+
+token_value = f"DistributedTask.SecureFile/{project_id}/{secure_file_id}"
+
+for group in target_groups:
+
+    descriptor = group["descriptor"]
+
+    body = {
+        "token": token_value,
+        "merge": True,
+        "accessControlEntries": [
+            {
+                "descriptor": descriptor,
+                "allow": 31,
+                "deny": 0
+            }
+        ]
+    }
+
+    resp = requests.post(
+        security_url,
+        headers=headers_json,
+        json=body,
+        verify=False
+    )
+
+    print("Assigning:", group.get("providerDisplayName"), "Status:", resp.status_code)
