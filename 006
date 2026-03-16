@@ -1,0 +1,52 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-qa
+
+variables:
+- group: onboarding-tool-secrets
+
+steps:
+
+# Clean git configuration BEFORE checkout
+- script: |
+    echo "Cleaning old git authentication..."
+    git config --global --unset-all http.extraheader || true
+  displayName: Clean Git Auth
+
+- checkout: self
+  persistCredentials: true
+
+- script: |
+
+    echo "Starting repo sync..."
+
+    git config --global user.email "rakoti.rohith@sc.com"
+    git config --global user.name "Rohith Rakoti"
+
+    FEATURE_BRANCH="feature/API-Integration"
+
+    AUTH=$(printf ":$(ADO_PAT)" | base64)
+
+    git config --global http.extraheader "Authorization: Basic $AUTH"
+
+    repos=(
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/repo1"
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/repo2"
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/repo3"
+    )
+
+    for repo in "${repos[@]}"
+    do
+        echo "Processing $repo"
+
+        git remote remove temp 2>/dev/null || true
+        git remote add temp $repo
+
+        git push temp HEAD:refs/heads/$FEATURE_BRANCH
+
+        git remote remove temp
+    done
+
+  displayName: Push code to multiple repos
