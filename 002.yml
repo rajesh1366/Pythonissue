@@ -1,0 +1,29 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- checkout: self
+  persistCredentials: true
+
+- script: |
+
+    git config --global user.email "pipeline@ado.com"
+    git config --global user.name "ADO Pipeline"
+
+    repos=(
+    "https://PAT@dev.azure.com/org/project/_git/repo1"
+    "https://PAT@dev.azure.com/org/project/_git/repo2"
+    "https://PAT@dev.azure.com/org/project/_git/repo3"
+    )
+
+    for repo in "${repos[@]}"
+    do
+        git remote add temp $repo
+        git push temp HEAD:main
+        git remote remove temp
+    done
+
+  displayName: Push code to multiple repositories
