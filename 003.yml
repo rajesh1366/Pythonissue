@@ -1,0 +1,38 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-qa
+
+variables:
+- group: onboarding-tool-secrets
+
+steps:
+- checkout: self
+  persistCredentials: true
+
+- script: |
+
+    git config --global user.email "pipeline@ado.com"
+    git config --global user.name "ADO Pipeline"
+
+    FEATURE_BRANCH="feature/pushCode-from-oneRepo-to-multipleRepos"
+
+    repos=(
+    "https://$(PAT)@ado.global.standardchartered.com/sc-ado-qa-op/ASTAQPR/_git/repo1"
+    "https://$(PAT)@ado.global.standardchartered.com/sc-ado-qa-op/ASTAQPR/_git/repo2"
+    "https://$(PAT)@ado.global.standardchartered.com/sc-ado-qa-op/ASTAQPR/_git/repo3"
+    )
+
+    for repo in "${repos[@]}"
+    do
+        echo "Processing repo: $repo"
+
+        git remote add temp $repo
+
+        git push temp HEAD:$FEATURE_BRANCH
+
+        git remote remove temp
+    done
+
+  displayName: Push code to multiple repositories
