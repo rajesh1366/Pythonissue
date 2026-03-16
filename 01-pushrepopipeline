@@ -1,0 +1,36 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  PAT: $(PAT_TOKEN)
+
+steps:
+
+- checkout: self
+  persistCredentials: true
+
+- task: Bash@3
+  displayName: Push code to multiple repos
+  inputs:
+    targetType: 'inline'
+    script: |
+
+      git config --global user.email "pipeline@ado.com"
+      git config --global user.name "ADO Pipeline"
+
+      SOURCE_REPO=$(Build.Repository.Uri)
+
+      REPO1=https://$(PAT)@dev.azure.com/ORG/PROJECT/_git/repo1
+      REPO2=https://$(PAT)@dev.azure.com/ORG/PROJECT/_git/repo2
+      REPO3=https://$(PAT)@dev.azure.com/ORG/PROJECT/_git/repo3
+
+      git remote add repo1 $REPO1
+      git remote add repo2 $REPO2
+      git remote add repo3 $REPO3
+
+      git push repo1 --all
+      git push repo2 --all
+      git push repo3 --all
