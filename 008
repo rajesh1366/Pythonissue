@@ -1,0 +1,60 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-qa
+
+variables:
+- group: onboarding-tool-secrets
+
+steps:
+
+- checkout: none
+
+- script: |
+
+    echo "Starting repository sync..."
+
+    git config --global user.email "rakoti.rohith@sc.com"
+    git config --global user.name "Rohith Rakoti"
+
+    AUTH=$(printf ":$(ADO_PAT)" | base64)
+    git config --global http.extraheader "Authorization: Basic $AUTH"
+
+    FEATURE_BRANCH="feature/API-Integration"
+
+    SOURCE_REPO="11111-scbk-repo1"
+
+    echo "Cleaning workspace..."
+    rm -rf $SOURCE_REPO
+
+    echo "Cloning source repo..."
+
+    git clone https://ado.global.standardchartered.com/sc-ado-qa-op/ASTAQPR/_git/$SOURCE_REPO
+
+    cd $SOURCE_REPO
+
+    echo "Files in source repo:"
+    ls -la
+
+    repos=(
+    "11111-TRMS-API-Integration-05"
+    "11111-TRMS-API-Integration-06"
+    "11111-TRMS-API-Integration-07"
+    )
+
+    for repo in "${repos[@]}"
+    do
+        echo "Pushing code to $repo"
+
+        git remote remove temp 2>/dev/null || true
+        git remote add temp https://ado.global.standardchartered.com/sc-ado-qa-op/ASTAQPR/_git/$repo
+
+        git push temp HEAD:refs/heads/$FEATURE_BRANCH
+
+        git remote remove temp
+    done
+
+    echo "Repository sync completed"
+
+  displayName: Sync source repo to multiple repos
