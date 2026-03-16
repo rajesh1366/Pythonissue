@@ -1,0 +1,46 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-qa
+
+variables:
+- group: onboarding-tool-secrets
+
+steps:
+- checkout: self
+  persistCredentials: true
+
+- script: |
+
+    echo "Starting repo sync..."
+
+    git config --global user.email "rakoti.rohith@sc.com"
+    git config --global user.name "Rohith Rakoti"
+
+    FEATURE_BRANCH="feature/API-Integration"
+
+    # Configure PAT authentication
+    git config --global http.extraheader "AUTHORIZATION: Basic $(echo -n :$(ADO_PAT) | base64)"
+
+    repos=(
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASTAQPR/_git/11111-TRMS-API-Integration-02"
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASTAQPR/_git/11111-TRMS-API-Integration-03"
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASTAQPR/_git/11111-TRMS-API-Integration-04"
+    )
+
+    for repo in "${repos[@]}"
+    do
+        echo "Processing repo: $repo"
+
+        git remote remove temp 2>/dev/null || true
+        git remote add temp $repo
+
+        git push temp HEAD:$FEATURE_BRANCH
+
+        git remote remove temp
+    done
+
+    echo "Repo sync completed"
+
+  displayName: Push code to multiple repositories
