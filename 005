@@ -1,0 +1,56 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-qa
+
+variables:
+- group: onboarding-tool-secrets
+
+steps:
+
+- checkout: self
+  persistCredentials: true
+
+- script: |
+
+    echo "Cleaning old git credentials..."
+    git config --global --unset-all http.extraheader || true
+
+    git config --global user.email "rakoti.rohith@sc.com"
+    git config --global user.name "Rohith Rakoti"
+
+    echo "Configuring authentication..."
+
+    AUTH=$(printf ":$(ADO_PAT)" | base64)
+
+    git config --global http.extraheader "Authorization: Basic $AUTH"
+
+    FEATURE_BRANCH="feature/API-Integration"
+
+    echo "Cloning source repository..."
+
+    git clone https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/SOURCE_REPO
+    cd SOURCE_REPO
+
+    repos=(
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/DEST_REPO_1"
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/DEST_REPO_2"
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/DEST_REPO_3"
+    )
+
+    for repo in "${repos[@]}"
+    do
+        echo "Pushing to $repo"
+
+        git remote remove temp 2>/dev/null || true
+        git remote add temp $repo
+
+        git push temp HEAD:refs/heads/$FEATURE_BRANCH
+
+        git remote remove temp
+    done
+
+    echo "Repository sync completed"
+
+  displayName: Push code to multiple repositories
