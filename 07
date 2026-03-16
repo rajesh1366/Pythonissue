@@ -1,0 +1,57 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-qa
+
+variables:
+- group: onboarding-tool-secrets
+
+steps:
+
+# Do not checkout pipeline repo
+- checkout: none
+
+- script: |
+
+    echo "Starting repository sync..."
+
+    git config --global user.email "rakoti.rohith@sc.com"
+    git config --global user.name "Rohith Rakoti"
+
+    # Authenticate using PAT
+    AUTH=$(printf ":$(ADO_PAT)" | base64)
+    git config --global http.extraheader "Authorization: Basic $AUTH"
+
+    FEATURE_BRANCH="feature/API-Integration"
+
+    echo "Cloning SOURCE repository..."
+
+    git clone https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/SOURCE_REPO
+
+    cd SOURCE_REPO
+
+    echo "Files in source repository:"
+    ls -la
+
+    repos=(
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/DEST_REPO1"
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/DEST_REPO2"
+    "https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/DEST_REPO3"
+    )
+
+    for repo in "${repos[@]}"
+    do
+        echo "Pushing code to $repo"
+
+        git remote remove temp 2>/dev/null || true
+        git remote add temp $repo
+
+        git push temp HEAD:refs/heads/$FEATURE_BRANCH
+
+        git remote remove temp
+    done
+
+    echo "Repository sync completed"
+
+  displayName: Push source repo code to multiple repos
