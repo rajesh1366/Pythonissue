@@ -1,0 +1,35 @@
+import subprocess
+
+# Source repository
+source_repo = "https://<PAT>@dev.azure.com/ORG/PROJECT/_git/source-repo"
+
+# Destination repositories
+destination_repos = [
+    "https://<PAT>@dev.azure.com/ORG/PROJECT/_git/repo1",
+    "https://<PAT>@dev.azure.com/ORG/PROJECT/_git/repo2",
+    "https://<PAT>@dev.azure.com/ORG/PROJECT/_git/repo3"
+]
+
+repo_folder = "temp_repo"
+
+# Clone source repo
+subprocess.run(["git", "clone", source_repo, repo_folder])
+
+# Move into repo folder
+subprocess.run(["cd", repo_folder], shell=True)
+
+for i, repo in enumerate(destination_repos):
+
+    remote_name = f"dest{i}"
+
+    subprocess.run([
+        "git", "-C", repo_folder,
+        "remote", "add", remote_name, repo
+    ])
+
+    subprocess.run([
+        "git", "-C", repo_folder,
+        "push", remote_name, "--all"
+    ])
+
+print("Code pushed to all repositories successfully")
