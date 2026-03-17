@@ -1,0 +1,78 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-ci-qa
+
+steps:
+- checkout: self
+  persistCredentials: true
+
+- script: |
+
+    echo "Starting repository sync..."
+
+    FEATURE_BRANCH="feature/API-Integration"
+
+    ORG="ado.global.standardchartered.com"
+    PROJECT="TTOQPR"
+    SOURCE_REPO="52015-test-repo"
+
+    AUTH_HEADER="Authorization: Bearer $(System.AccessToken)"
+
+    echo "Cleaning workspace..."
+    rm -rf "$SOURCE_REPO"
+
+    echo "Cloning source repo..."
+    git -c http.extraheader="$AUTH_HEADER" clone https://$ORG/sc-ado-qa-op/$PROJECT/_git/$SOURCE_REPO
+
+    echo "Reading repo list from CSV..."
+
+    tail -n +2 repos.csv | while IFS= read -r repo
+    do
+        # Clean repo name (VERY IMPORTANT)
+        repo=$(echo "$repo" | tr -d '\r' | tr -d '"' | xargs)
+
+        if [ -z "$repo" ]; then
+            continue
+        fi
+
+        echo "================================="
+        echo "Processing repo: $repo"
+        echo "================================="
+
+        rm -rf "$repo"
+
+        echo "Cloning target repo..."
+        git -c http.extraheader="$AUTH_HEADER" clone https://$ORG/sc-ado-qa-op/$PROJECT/_git/$repo
+
+        cd "$repo" || exit 1
+
+        # Local git config (safe)
+        git config user.email "ado-bot@sc.com"
+        git config user.name "ADO Bot"
+
+        # Create or switch branch
+        git checkout -b $FEATURE_BRANCH || git checkout $FEATURE_BRANCH
+
+        echo "Copying files..."
+        cp -r ../$SOURCE_REPO/* . 2>/dev/null || echo "No files copied"
+
+        git add .
+
+        if ! git diff --cached --quiet; then
+            git commit -m "Sync from $SOURCE_REPO"
+        else
+            echo "No changes to commit"
+        fi
+
+        echo "Pushing changes..."
+        git -c http.extraheader="$AUTH_HEADER" push origin $FEATURE_BRANCH --force
+
+        cd ..
+
+    done
+
+    echo "Repository sync completed successfully!"
+
+  displayName: Sync repos within same project using CSV (No PAT)
