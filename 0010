@@ -1,0 +1,74 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-ci-qa
+
+steps:
+- checkout: self
+  persistCredentials: true
+
+- script: |
+
+    echo "Starting repository sync..."
+
+    FEATURE_BRANCH="feature/API-Integration"
+
+    ORG="ado.global.standardchartered.com"
+    PROJECT="TTOQPR"
+    SOURCE_REPO="52015-test-repo"
+
+    echo "Cleaning workspace..."
+    rm -rf $SOURCE_REPO
+
+    echo "Cloning source repo..."
+    git clone https://$(System.AccessToken)@$ORG/sc-ado-qa-op/$PROJECT/_git/$SOURCE_REPO
+
+    echo "Reading repo list from CSV..."
+
+    tail -n +2 repos.csv | while IFS= read -r repo
+    do
+        # Clean repo name (VERY IMPORTANT)
+        repo=$(echo "$repo" | tr -d '\r' | tr -d '"' | xargs)
+
+        [ -z "$repo" ] && continue
+
+        echo "================================="
+        echo "Processing repo: $repo"
+        echo "================================="
+
+        rm -rf "$repo"
+
+        echo "Cloning target repo..."
+        git clone https://$(System.AccessToken)@$ORG/sc-ado-qa-op/$PROJECT/_git/$repo
+
+        cd "$repo"
+
+        # local git config (safe)
+        git config user.email "ado-bot@sc.com"
+        git config user.name "ADO Bot"
+
+        # create or switch branch
+        git checkout -b $FEATURE_BRANCH || git checkout $FEATURE_BRANCH
+
+        echo "Copying files..."
+        cp -r ../$SOURCE_REPO/* .
+
+        git add .
+
+        if ! git diff --cached --quiet; then
+            git commit -m "Sync from $SOURCE_REPO"
+        else
+            echo "No changes to commit"
+        fi
+
+        echo "Pushing changes..."
+        git push origin $FEATURE_BRANCH --force
+
+        cd ..
+
+    done
+
+    echo "Repository sync completed!"
+
+  displayName: Sync repos within same project using CSV
