@@ -1,0 +1,61 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-ci-qa
+
+variables:
+- group: onboarding-tool-secrets   # contains ADO_PAT
+
+steps:
+- checkout: self
+
+- script: |
+
+    echo "Starting repository sync..."
+
+    FEATURE_BRANCH="feature/API-Integration"
+
+    ORG="ado.global.standardchartered.com"
+    PROJECT="TTOQPR"
+    SOURCE_REPO="52015-test-repo"
+
+    echo "Cleaning workspace..."
+    rm -rf "$SOURCE_REPO"
+
+    echo "Cloning source repo..."
+    git clone https://$(ADO_PAT)@$ORG/sc-ado-qa-op/$PROJECT/_git/$SOURCE_REPO
+
+    echo "Reading repo list from CSV..."
+
+    tail -n +2 repos.csv | while IFS= read -r repo
+    do
+        repo=$(echo "$repo" | tr -d '\r' | tr -d '"' | xargs)
+
+        [ -z "$repo" ] && continue
+
+        echo "Processing repo: $repo"
+
+        rm -rf "$repo"
+
+        git clone https://$(ADO_PAT)@$ORG/sc-ado-qa-op/$PROJECT/_git/$repo
+
+        cd "$repo"
+
+        git config user.email "ado-bot@sc.com"
+        git config user.name "ADO Bot"
+
+        git checkout -b $FEATURE_BRANCH || git checkout $FEATURE_BRANCH
+
+        cp -r ../$SOURCE_REPO/* .
+
+        git add .
+        git diff --cached --quiet || git commit -m "Sync from $SOURCE_REPO"
+
+        git push origin $FEATURE_BRANCH --force
+
+        cd ..
+
+    done
+
+    echo "Done"
