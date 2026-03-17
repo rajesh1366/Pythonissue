@@ -1,0 +1,59 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-ga
+
+variables:
+- group: onboarding-tool-secrets
+
+steps:
+- checkout: self
+
+- script: |
+
+    echo "Starting repository sync..."
+
+    git config --global user.email "ado-bot@sc.com"
+    git config --global user.name "ADO Bot"
+
+    FEATURE_BRANCH="feature/API-Integration"
+    SOURCE_REPO="create-prod-v2-env"
+
+    echo "Cleaning workspace..."
+    rm -rf $SOURCE_REPO
+
+    echo "Cloning source repo..."
+
+    git clone https://$(ADO_PAT)@ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/$SOURCE_REPO
+
+    echo "Reading repo list from CSV..."
+
+    tail -n +2 repos.csv | while IFS=, read -r repo
+    do
+        echo "Processing repo: $repo"
+
+        rm -rf $repo
+
+        git clone https://$(ADO_PAT)@ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/$repo
+
+        cd $repo
+
+        git checkout -b $FEATURE_BRANCH || git checkout $FEATURE_BRANCH
+
+        cp -r ../$SOURCE_REPO/* .
+
+        git add .
+        git commit -m "Sync from $SOURCE_REPO"
+
+        git push --force https://$(ADO_PAT)@ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/$repo $FEATURE_BRANCH
+
+        cd ..
+    done
+
+    echo "Cleaning source repo..."
+    rm -rf $SOURCE_REPO
+
+    echo "Repository sync completed"
+
+  displayName: Sync repos using CSV (SaaS pattern)
