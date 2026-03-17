@@ -1,0 +1,60 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-ci-qa
+
+variables:
+- group: onboarding-tool-secrets
+
+steps:
+- checkout: self
+
+- script: |
+
+    echo "Starting repository sync..."
+
+    FEATURE_BRANCH="feature/API-Integration"
+
+    ORG="ado.global.standardchartered.com"
+    PROJECT="TTOQPR"
+    SOURCE_REPO="52015-test-repo"
+
+    AUTH=$(printf ":%s" "$(ADO_PAT)" | base64)
+
+    echo "Cleaning workspace..."
+    rm -rf "$SOURCE_REPO"
+
+    echo "Cloning source repo..."
+    git -c http.extraheader="Authorization: Basic $AUTH" clone https://$ORG/sc-ado-qa-op/$PROJECT/_git/$SOURCE_REPO
+
+    tail -n +2 repos.csv | while IFS= read -r repo
+    do
+        repo=$(echo "$repo" | tr -d '\r' | tr -d '"' | xargs)
+
+        [ -z "$repo" ] && continue
+
+        echo "Processing repo: $repo"
+
+        rm -rf "$repo"
+
+        git -c http.extraheader="Authorization: Basic $AUTH" clone https://$ORG/sc-ado-qa-op/$PROJECT/_git/$repo
+
+        cd "$repo" || exit 1
+
+        git config user.email "ado-bot@sc.com"
+        git config user.name "ADO Bot"
+
+        git checkout -b $FEATURE_BRANCH || git checkout $FEATURE_BRANCH
+
+        cp -r ../$SOURCE_REPO/* .
+
+        git add .
+        git diff --cached --quiet || git commit -m "Sync"
+
+        git -c http.extraheader="Authorization: Basic $AUTH" push origin $FEATURE_BRANCH --force
+
+        cd ..
+    done
+
+    echo "Done"
