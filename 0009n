@@ -1,0 +1,55 @@
+trigger:
+- main
+
+pool:
+  name: sc-linux-ga
+
+steps:
+- checkout: self
+  persistCredentials: true   # IMPORTANT (fixes your current error)
+
+- script: |
+
+    echo "Starting repository sync..."
+
+    git config --global user.email "ado-bot@sc.com"
+    git config --global user.name "ADO Bot"
+
+    FEATURE_BRANCH="feature/API-Integration"
+    SOURCE_REPO="create-prod-v2-env"
+
+    echo "Cleaning workspace..."
+    rm -rf $SOURCE_REPO
+
+    echo "Cloning source repo..."
+    git clone https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/$SOURCE_REPO
+
+    echo "Reading repo list from CSV..."
+
+    tail -n +2 repos.csv | while IFS=, read -r repo
+    do
+        # Clean repo name (remove spaces/quotes)
+        repo=$(echo "$repo" | tr -d '"' | xargs)
+
+        if [ -z "$repo" ]; then
+            continue
+        fi
+
+        echo "Processing repo: $repo"
+
+        rm -rf $repo
+
+        # Clone destination repo
+        git clone https://ado.global.standardchartered.com/sc-ado-qa-op/ASIAQPR/_git/$repo
+
+        cd $repo
+
+        # Create or switch branch
+        git checkout -b $FEATURE_BRANCH || git checkout $FEATURE_BRANCH
+
+        # Copy files from source repo
+        cp -r ../$SOURCE_REPO/* .
+
+        git add .
+
+        # Commit only if changes exist
